@@ -1,152 +1,87 @@
 #!/usr/bin/env bash
-# Строгий режим: прерывать выполнение при любой ошибке, ошибке в конвейере или использовании необъявленных переменных
 set -eo pipefail
 
-# ==============================================================================
-# 1. ИНИЦИАЛИЗАЦИЯ ПЕРЕМЕННЫХ
-# ==============================================================================
-# Определяем абсолютный путь к директории, где лежит этот скрипт
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 WEB_DIR="$ROOT_DIR/web_rep/v1"
 UNIT_NAME="butovsky-site.service"
 UNIT_PATH="/etc/systemd/system/$UNIT_NAME"
 
-# Функция для красивого вывода ошибки и завершения работы
-fail() { 
-  printf '\n❌ Ошибка: %s\n' "$1" >&2
-  printf '💡 Подсказка: Проверьте права доступа, наличие файлов и версию Node.js.\n\n' >&2
-  exit 1 
-}
+fail() { printf 'Error: %s\n' "$1" >&2; exit 1; }
 
-# ==============================================================================
-# 2. ПРОВЕРКА ПРАВ ДОСТУПА (БЕЗОПАСНОСТЬ)
-# ==============================================================================
-if [ "$(id -u)" -eq 0 ]; then
-  # Если скрипт запущен через sudo, переменная SUDO_USER содержит имя исходного пользователя
-  if [ -n "$SUDO_USER" ]; then
-    printf '⚠️  Обнаружен запуск через sudo. Для безопасности переключаемся на пользователя "%s"...\n' "$SUDO_USER"
-    # Перезапускаем скрипт от имени обычного пользователя, сохраняя текущую директорию
-    exec su - "$SUDO_USER" -c "cd '$ROOT_DIR' && bash start.sh"
-  else
-    # Если мы действительно залогинены как root, блокируем выполнение
-    fail "Запуск веб-сервера от имени root запрещён из соображений безопасности!
-Пожалуйста, выполните следующие действия:
-  1. Создайте обычного пользователя (если его нет): adduser myuser
-  2. Добавьте его в группу sudo: usermod -aG sudo myuser
-  3. Переключитесь на него: su - myuser
-  4. Переместите проект в доступную ему папку (например, /home/myuser/project)
-  5. Запустите скрипт БЕЗ sudo: bash start.sh"
-  fi
-fi
+# Проверки переменных окружения
+if [ -z "$PORT" ]; then PORT=3000; fi
+if [ -z "$HOST" ]; then HOST=0.0.0.0; fi
+if [ -z "$SITE_URL" ]; then SITE_URL="http://butovsky.duckdns.org:$PORT"; fi
 
-# ==============================================================================
-# 3. ПРОВЕРКА И НАСТРОЙКА ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
-# ==============================================================================
-# Устанавливаем значения по умолчанию, если переменные не заданы
-PORT="${PORT:-3000}"
-HOST="${HOST:-0.0.0.0}"
-SITE_URL="${SITE_URL:-http://butovsky.duckdns.org:$PORT}"
+case "$PORT" in ''|*[!0-9]*) fail "PORT must be an integer from 1 to 65535." ;; esac
+if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then fail "PORT must be an integer from 1 to 65535."; fi
+case "$HOST" in *[!A-Za-z0-9.:-]*) fail "HOST may contain only letters, numbers, dots, colons, and hyphens." ;; esac
+if [[ "$ROOT_DIR" =~ [[:space:]] ]]; then fail "The repository path cannot contain whitespace."; fi
 
-# Валидация PORT (только числа от 1 до 65535)
-if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
-  fail "PORT должен быть целым числом от 1 до 65535. Текущее значение: $PORT"
-fi
-
-# Валидация HOST (только буквы, цифры, точки, двоеточия и дефисы)
-if [[ "$HOST" =~ [^A-Za-z0-9.:-] ]]; then
-  fail "HOST содержит недопустимые символы. Разрешены только буквы, цифры, точки, двоеточия и дефисы."
-fi
-
-# Проверка пути на наличие пробелов (systemd плохо работает с путями, содержащими пробелы)
-if [[ "$ROOT_DIR" =~ [[:space:]] ]]; then
-  fail "Путь к репозитору не должен содержать пробелов: '$ROOT_DIR'"
-fi
-
-# ==============================================================================
-# 4. ПРОВЕРКА НАЛИЧИЯ ФАЙЛОВ ПРОЕКТА
-# ==============================================================================
+# Проверка файлов
 if [ ! -f "$ROOT_DIR/server.js" ] || [ ! -f "$WEB_DIR/package.json" ] || [ ! -f "$WEB_DIR/package-lock.json" ]; then
-  fail "Не найдены обязательные файлы (server.js или package.json). Убедитесь, что вы запускаете скрипт из корня репозитория Butovsky."
+  fail "Expected server.js and the web_rep/v1 npm project were not found. Run this script from the Butovsky repository."
 fi
 
-# Если зависимости не установлены, запускаем вспомогательный скрипт
+# Установка зависимостей, если их нет
 if [ ! -d "$WEB_DIR/node_modules" ]; then
-  printf '📦 Зависимости не найдены. Запускаем library.sh для установки...\n'
   bash "$ROOT_DIR/library.sh"
 fi
 
-# ==============================================================================
-# 5. ПРОВЕРКА ВЕРСИИ NODE.JS
-# ==============================================================================
-# Функция для получения мажорной версии Node.js из переданного пути
-get_node_major() {
+# Проверка Node.js
+node_major() {
   "$1" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || printf '0\n'
 }
-
-# Функция поиска подходящего исполняемого файла Node.js (версия 22+)
-find_node() {
+resolve_node() {
   local candidate major
-  
-  # Проверяем node из текущего PATH
   candidate="$(command -v node 2>/dev/null || true)"
   if [ -n "$candidate" ]; then
-    major="$(get_node_major "$candidate")"
-    if [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -ge 22 ]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
+    major="$(node_major "$candidate")"
+    case "$major" in ''|*[!0-9]*) major=0 ;; esac
+    if [ "$major" -ge 22 ]; then printf '%s\n' "$candidate"; return 0; fi
   fi
-  
-  # Проверяем стандартный путь /usr/bin/node
   candidate="/usr/bin/node"
   if [ -x "$candidate" ]; then
-    major="$(get_node_major "$candidate")"
-    if [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -ge 22 ]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
+    major="$(node_major "$candidate")"
+    case "$major" in ''|*[!0-9]*) major=0 ;; esac
+    if [ "$major" -ge 22 ]; then printf '%s\n' "$candidate"; return 0; fi
   fi
-  
   return 1
 }
 
-NODE_BIN="$(find_node || true)"
-if [ -z "$NODE_BIN" ]; then 
-  fail "Требуется Node.js версии 22 или выше. Сначала выполните: bash library.sh" 
-fi
+NODE_BIN="$(resolve_node || true)"
+if [ -z "$NODE_BIN" ]; then fail "Node.js 22 or newer is required. Run bash library.sh first."; fi
+if [[ "$NODE_BIN" =~ [[:space:]] ]]; then fail "The Node.js executable path cannot contain whitespace."; fi
 
-if [[ "$NODE_BIN" =~ [[:space:]] ]]; then
-  fail "Путь к исполняемому файлу Node.js не должен содержать пробелы: '$NODE_BIN'"
-fi
-
-# Обновляем PATH, чтобы использовать найденную версию Node.js
 PATH="$(dirname "$NODE_BIN"):$PATH"
 export PATH
 
-# Проверка наличия необходимых системных утилит
-command -v npm >/dev/null 2>&1 || fail "Не найден npm для $NODE_BIN. Выполните: bash library.sh"
-command -v systemctl >/dev/null 2>&1 || fail "Система не поддерживает systemd (systemctl), который необходим для автозапуска."
-command -v sudo >/dev/null 2>&1 || fail "Не найден sudo. Он необходим для регистрации сервиса."
+if ! command -v npm >/dev/null 2>&1; then fail "npm is missing for $NODE_BIN."; fi
+if ! command -v systemctl >/dev/null 2>&1; then fail "systemd (systemctl) is required."; fi
 
-# Тихая проверка прав sudo (чтобы запросить пароль сейчас, а не в середине выполнения)
-sudo -v
+# Функция для выполнения команд с правами root (если мы уже root, sudo не нужен)
+run_root() {
+  if [ "$(id -u)" -eq 0 ]; then 
+    "$@"
+  else 
+    sudo "$@"
+  fi
+}
 
-# ==============================================================================
-# 6. СБОРКА ПРОЕКТА
-# ==============================================================================
-printf '\n🔨 Сборка production-версии сайта из web_rep/v1...\n'
-# Используем legacy-провайдер OpenSSL, если он требуется для совместимости старых пакетов
-NODE_OPTIONS="${NODE_OPTIONS:-} --openssl-legacy-provider" npm run build --prefix "$WEB_DIR"
+# Если мы не root, проверяем наличие sudo и запрашиваем пароль заранее
+if [ "$(id -u)" -ne 0 ]; then
+  if ! command -v sudo >/dev/null 2>&1; then fail "sudo is required."; fi
+  sudo -v
+fi
 
-# ==============================================================================
-# 7. СОЗДАНИЕ И УСТАНОВКА SYSTEMD-СЕРВИСА
-# ==============================================================================
-SERVICE_USER="$(id -un)" # Имя текущего (уже обычного!) пользователя
+printf 'Building the production website from web_rep/v1...\n'
+NODE_OPTIONS="$NODE_OPTIONS --openssl-legacy-provider" npm run build --prefix "$WEB_DIR"
+
+# Создаем юнит-файл. Если запущено от root, User=root, если от обычного пользователя - User=этот_пользователь
+SERVICE_USER="$(id -un)"
 UNIT_TMP="$(mktemp)"
-# Гарантируем удаление временного файла при завершении скрипта (даже при ошибке)
 trap 'rm -f "$UNIT_TMP"' EXIT
 
-# Генерируем конфигурацию сервиса
 cat > "$UNIT_TMP" <<EOF
 [Unit]
 Description=Butovsky website
@@ -163,7 +98,6 @@ Environment=HOST=$HOST
 ExecStart=$NODE_BIN $ROOT_DIR/server.js
 Restart=always
 RestartSec=5
-# Дополнительные меры безопасности
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -173,16 +107,7 @@ ProtectHome=read-only
 WantedBy=multi-user.target
 EOF
 
-# Вспомогательная функция для выполнения команд от имени root
-run_root() {
-  if [ "$(id -u)" -eq 0 ]; then 
-    "$@"
-  else 
-    sudo "$@"
-  fi
-}
-
-printf '\n⚙️  Регистрация systemd-сервиса (потребуются права sudo)...\n'
+printf 'Registering systemd service...\n'
 run_root install -o root -g root -m 0644 "$UNIT_TMP" "$UNIT_PATH"
 run_root systemctl daemon-reload
 run_root systemctl enable "$UNIT_NAME"
@@ -193,42 +118,23 @@ else
   run_root systemctl start "$UNIT_NAME"
 fi
 
-# ==============================================================================
-# 8. ПРОВЕРКА РАБОТОСПОСОБНОСТИ (HEALTH CHECK)
-# ==============================================================================
-printf '⏳ Ожидание запуска сервиса и проверка здоровья...'
+# Проверка здоровья
 HEALTHY=0
 for attempt in $(seq 1 20); do
-  printf '.'
-  # Делаем локальный HTTP-запрос к серверу для проверки
-  if PORT="$PORT" "$NODE_BIN" -e '
-    const http = require("http");
-    const req = http.get({host:"127.0.0.1", port:Number(process.env.PORT), path:"/"}, res => {
-      res.resume();
-      if(res.statusCode !== 200) process.exitCode = 1;
-    });
-    req.on("error", () => { process.exitCode = 1; });
-    req.setTimeout(2000, () => { req.destroy(); process.exitCode = 1; });
-  ' >/dev/null 2>&1; then
+  if PORT="$PORT" "$NODE_BIN" -e 'const http=require("http"); const req=http.get({host:"127.0.0.1",port:Number(process.env.PORT),path:"/"},res=>{res.resume(); if(res.statusCode!==200) process.exitCode=1;}); req.on("error",()=>{process.exitCode=1;}); req.setTimeout(2000,()=>{req.destroy(); process.exitCode=1;});' >/dev/null 2>&1; then
     HEALTHY=1
     break
   fi
   sleep 1
 done
-printf '\n'
 
 if [ "$HEALTHY" -ne 1 ]; then
-  printf '\n❌ Сервис запустился, но не отвечает на HTTP-запросы.\n'
   run_root systemctl --no-pager --full status "$UNIT_NAME" || true
-  fail "Проверьте логи команды: sudo journalctl -u $UNIT_NAME -n 100 --no-pager"
+  fail "The systemd service started, but the local HTTP health check failed. Check logs with: sudo journalctl -u $UNIT_NAME -n 100 --no-pager"
 fi
 
-# ==============================================================================
-# 9. УСПЕШНОЕ ЗАВЕРШЕНИЕ
-# ==============================================================================
-printf '\n✅ Успешно! Сайт Butovsky запущен и работает.\n'
-printf '🌐 URL: %s\n' "$SITE_URL"
-printf '⚙️  Сервис: %s (включен для автозапуска после перезагрузки)\n' "$UNIT_NAME"
-printf '📊 Статус: sudo systemctl status %s\n' "$UNIT_NAME"
-printf '📝 Логи:   sudo journalctl -u %s -f\n' "$UNIT_NAME"
-printf '\n⚠️  Важно: Домен должен указывать на IP этого сервера, а входящий TCP-порт %s должен быть открыт в брандмауэре.\n' "$PORT"
+printf '\n✅ Butovsky website is running: %s\n' "$SITE_URL"
+printf 'Systemd service: %s (enabled for startup after reboot)\n' "$UNIT_NAME"
+printf 'Status: sudo systemctl status %s\n' "$UNIT_NAME"
+printf 'Logs:   sudo journalctl -u %s -f\n' "$UNIT_NAME"
+printf 'The domain must resolve to this server and inbound TCP port %s must be allowed.\n' "$PORT"
