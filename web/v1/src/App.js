@@ -77,7 +77,7 @@ function App() {
           <div className="hero-copy">
             <div className="eyebrow"><span className="status-dot" /> ПРИВАТНОСТЬ БЕЗ ЛИШНЕГО</div>
             <h1 id="hero-title">Твоя сеть.<br /><span>Твои правила.</span></h1>
-            <p className="hero-description">Защищённое VPN-подключение на каждый день — дома, в дороге и в общественных сетях. Без регистрации на сайте и без лимита трафика.</p>
+            <p className="hero-description">Надёжное VPN-подключение на каждый день — для дома, поездок и общественных сетей. Без регистрации на сайте и без лимита трафика.</p>
             <div className="hero-actions">
               <a className="button button-primary" href="#plans">Смотреть тарифы <Icon name="arrow" /></a>
               <a className="text-link" href="#advantages">Почему Butovsky <span aria-hidden="true">↓</span></a>
