@@ -235,8 +235,9 @@ function App() {
                   <p className="plan-summary">Всё нужное для приватного интернета</p>
                   <div className="plan-divider" />
                   <ul className="plan-features">
-                    <li><Icon name="check" /> До 20 устройств</li>
-                    <li><Icon name="check" /> Безлимитный трафик</li>
+                    <li><Icon name="check" /> uptime 99.9%</li>
+                    <li><Icon name="check" /> выделенный IP</li>
+                    <li><Icon name="check" /> удобное управление</li>
                     <li><Icon name="check" /> Поддержка 24/7</li>
                   </ul>
                   <a className="button button-primary" href="https://web.telegram.org/k/#@Butovsky_Host_robot" target="_blank" rel="noopener noreferrer">Перейти к покупке <Icon name="arrow" /></a>
