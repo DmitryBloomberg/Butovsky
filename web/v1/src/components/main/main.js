@@ -93,7 +93,7 @@ function App() {
             <h1 id="hero-title">Твоя сеть.<br /><span>Твои правила.</span></h1>
             <p className="hero-description">C Butovsky ваше путешествие по интернету станет безопаснее</p>
             <div className="hero-actions">
-              <a className="button button-primary" href="#plans">Подключиться <Icon name="arrow" /></a>
+              <a className="button button-primary" href="https://web.telegram.org/k/#@ButovskyLive" target="_blank" rel="noopener noreferrer">Перейти в наш Telegram канал <i className="bx bxl-telegram"></i><Icon name="arrow" /></a>
               <a className="text-link" href="#advantages">Почему Butovsky <span aria-hidden="true">↓</span></a>
             </div>
             <div className="hero-proof" aria-label="Условия тарифа">
@@ -168,16 +168,14 @@ function App() {
                   <li><Icon name="check" /> Безлимитный трафик</li>
                   <li><Icon name="check" /> Поддержка 24/7</li>
                 </ul>
-                <button className={'button plan-button' + (selectedPlan === plan.price ? ' is-selected' : '')} type="button" onClick={() => setSelectedPlan(plan.price)} aria-pressed={selectedPlan === plan.price}>
-                  {selectedPlan === plan.price ? 'Тариф выбран' : 'Выбрать тариф'} <Icon name="arrow" />
-                </button>
+                <a className="button button-primary" href="https://web.telegram.org/k/#@Butovsky_VPN_robot" target="_blank" rel="noopener noreferrer">Перейти к покупке <Icon name="arrow" /></a>
               </article>
             ))}
           </div>
           {selectedPlan !== null && (
             <div className="selection-note" role="status">
               <span className="selection-check"><Icon name="check" /></span>
-              <p>Вы выбрали тариф <strong>{selectedPlan} ₽</strong>. Регистрация на сайте не нужна — сообщите этот вариант поддержке при подключении.</p>
+              <p>Вы выбрали тариф <strong>{selectedPlan} ₽</strong>. В данный момент предоставление услуг через сайт не изобретено. </p>
             </div>
           )}
           <p className="pricing-footnote"><Icon name="lock" /> После выбора удобного тарифа вы можете совершить покупку через сайт, либо через TelegramBOT - @Butovsky_VPN_robot</p>
@@ -202,16 +200,14 @@ function App() {
                   <li><Icon name="check" /> Помощь на любом этапе подключения</li>
                   <li><Icon name="check" /> Стабильная сеть и хорошее покрытие</li>
                 </ul>
-                <button className={'button plan-button' + (selectedPlan === plan.price ? ' is-selected' : '')} type="button" onClick={() => setSelectedPlan(plan.price)} aria-pressed={selectedPlan === plan.price}>
-                  {selectedPlan === plan.price ? 'Тариф выбран' : 'Выбрать тариф'} <Icon name="arrow" />
-                </button>
+                <a className="button button-primary" href="https://web.telegram.org/k/#@Butovsky_Esim_robot" target="_blank" rel="noopener noreferrer">Перейти к покупке <Icon name="arrow" /></a>
               </article>
             ))}
           </div>
           {selectedPlan !== null && (
             <div className="selection-note" role="status">
               <span className="selection-check"><Icon name="check" /></span>
-              <p>Вы выбрали тариф <strong>{selectedPlan} ₽</strong>. Регистрация на сайте не нужна — сообщите этот вариант поддержке при подключении.</p>
+              <p>Вы выбрали тариф <strong>{selectedPlan} ₽</strong>. В данный момент предоставление услуг через сайт не изобретено. </p>
             </div>
           )}
           <p className="pricing-footnote"><Icon name="lock" /> После выбора удобного тарифа вы можете совершить покупку через сайт, либо через TelegramBOT - @Butovsky_Esim_robot</p>
@@ -243,9 +239,7 @@ function App() {
                     <li><Icon name="check" /> Безлимитный трафик</li>
                     <li><Icon name="check" /> Поддержка 24/7</li>
                   </ul>
-                  <button className={'button plan-button' + (selectedPlan === plan.price ? ' is-selected' : '')} type="button" onClick={() => setSelectedPlan(plan.price)} aria-pressed={selectedPlan === plan.price}>
-                    {selectedPlan === plan.price ? 'Тариф выбран' : 'Выбрать тариф'} <Icon name="arrow" />
-                  </button>
+                  <a className="button button-primary" href="https://web.telegram.org/k/#@Butovsky_Host_robot" target="_blank" rel="noopener noreferrer">Перейти к покупке <Icon name="arrow" /></a>
                 </article>
               ))}
             </div>
@@ -254,7 +248,7 @@ function App() {
           {selectedPlan !== null && (
             <div className="selection-note" role="status">
               <span className="selection-check"><Icon name="check" /></span>
-              <p>Вы выбрали тариф <strong>{selectedPlan} ₽</strong>. Регистрация на сайте не нужна — сообщите этот вариант поддержке при подключении.</p>
+              <p>Вы выбрали тариф <strong>{selectedPlan} ₽</strong>. В данный момент предоставление услуг через сайт не изобретено.</p>
             </div>
           )}
           <p className="pricing-footnote"><Icon name="lock" /> После выбора удобного тарифа вы можете совершить покупку через сайт, либо через TelegramBOT - @Butovsky_Host_robot</p>
@@ -308,7 +302,7 @@ function App() {
         <section className="closing-cta section-wrap" aria-label="Выбор тарифа">
           <div className="closing-orb" aria-hidden="true"><span /></div>
           <div className="closing-copy"><div className="eyebrow">BUTOVSKY <i class='bx bxl-telegram'></i></div><h2>Подключайся.<br /><span>Оставайся собой.</span></h2></div>
-          <a className="button button-primary" href="#plans">Перейти в наш Telegram канал <i class='bx bxl-telegram'></i><Icon name="arrow" /></a>
+          <a className="button button-primary" href="https://web.telegram.org/k/#@ButovskyLive" target="_blank" rel="noopener noreferrer">Перейти в наш Telegram канал <i className="bx bxl-telegram"></i><Icon name="arrow" /></a>
         </section>
       </main>
 
