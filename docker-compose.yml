@@ -1,13 +1,41 @@
-# docker-compose.yml (в корне проекта)
 services:
-  butovsky-web:
+  web:
     build:
-      context: ./Services/butovsky-web_site # Путь к папке, где лежит Dockerfile
+      context: ./Services/butovsky-web_site
       dockerfile: Dockerfile
-    container_name: butovsky-web-site
-    ports:
-      - "3000:3000" # Пробрасываем порт 3000 из контейнера на хост-машину
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
+    expose:
+      - "3000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - site
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      DOMAIN: "${DOMAIN}"
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - site
+
+networks:
+  site:
+
+volumes:
+  caddy_data:
+  caddy_config:

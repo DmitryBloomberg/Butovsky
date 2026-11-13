@@ -1,0 +1,5 @@
+.deploy.env
+.deploy.env.tmp.*
+node_modules/
+npm-debug.log*
+.DS_Store
