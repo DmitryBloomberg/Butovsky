@@ -1,0 +1,17 @@
+{
+    auto_https disable_redirects
+}
+
+http://{$DOMAIN} {
+    redir https://{$DOMAIN}:8443{uri} permanent
+}
+
+{$DOMAIN}:8443 {
+    tls {
+        issuer acme {
+            disable_tlsalpn_challenge
+        }
+    }
+    encode zstd gzip
+    reverse_proxy web:3000
+}

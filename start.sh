@@ -24,12 +24,6 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v ss >/dev/null 2>&1; then
-    echo "Ошибка: не найдена команда ss (обычно входит в iproute2)."
-    echo "Она нужна, чтобы проверить порты 80/443 и не задеть другие сайты."
-    exit 1
-fi
-
 # A stable name derived from this exact directory prevents Compose from
 # adopting another project's containers, networks, or volumes.
 PROJECT_HASH="$(printf '%s' "$SCRIPT_DIR" | cksum | awk '{print $1}')"
@@ -37,6 +31,33 @@ PROJECT_NAME="butovsky-site-$PROJECT_HASH"
 COMPOSE=(docker compose --project-directory "$SCRIPT_DIR" -f "$SCRIPT_DIR/docker-compose.yml" -p "$PROJECT_NAME")
 if [[ -f "$ENV_FILE" ]]; then
     COMPOSE+=(--env-file "$ENV_FILE")
+fi
+
+case "${1:-start}" in
+    start) ;;
+    status)
+        "${COMPOSE[@]}" ps
+        exit 0
+        ;;
+    logs)
+        "${COMPOSE[@]}" logs --tail=100
+        exit 0
+        ;;
+    stop)
+        "${COMPOSE[@]}" stop
+        echo "Остановлены только контейнеры этого проекта; сертификаты и тома сохранены."
+        exit 0
+        ;;
+    *)
+        echo "Использование: bash start.sh [start|status|logs|stop]"
+        exit 2
+        ;;
+esac
+
+if ! command -v ss >/dev/null 2>&1; then
+    echo "Ошибка: не найдена команда ss (обычно входит в iproute2)."
+    echo "Она нужна, чтобы проверить порты 80/8443 и не задеть другие сайты."
+    exit 1
 fi
 
 container_is_running() {
@@ -54,15 +75,6 @@ container_is_healthy() {
     [[ -n "$container_id" ]] &&
         [[ "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id" 2>/dev/null || true)" == "healthy" ]]
 }
-
-if container_is_running web && container_is_healthy web && container_is_running caddy; then
-    DOMAIN="$(awk -F= '$1 == "DOMAIN" { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE" 2>/dev/null || true)"
-    echo "Сайт уже запущен в отдельном Docker Compose-проекте."
-    if [[ -n "$DOMAIN" ]]; then
-        echo "Адрес: https://$DOMAIN"
-    fi
-    exit 0
-fi
 
 if [[ -L "$ENV_FILE" ]]; then
     echo "Ошибка: $ENV_FILE является символической ссылкой. Для безопасности замените её обычным файлом."
@@ -110,8 +122,7 @@ else
     printf 'DOMAIN=%s\n' "$DOMAIN" > "$ENV_FILE"
 fi
 
-# The first run creates this file only after the initial running-container
-# check, so rebuild the Compose arguments to pass the saved domain.
+# Pass the validated domain to Compose on both first and subsequent runs.
 COMPOSE=(docker compose --project-directory "$SCRIPT_DIR" -f "$SCRIPT_DIR/docker-compose.yml" -p "$PROJECT_NAME" --env-file "$ENV_FILE")
 
 echo "Проверяю, что домен разрешается через DNS..."
@@ -123,9 +134,9 @@ fi
 
 # If this project's Caddy is already running, it already owns these ports.
 # Otherwise, refuse to start if another host process or Docker container uses
-# either public web port. Nothing is stopped or reconfigured.
+# port 80 (ACME HTTP challenge) or 8443 (public HTTPS). Port 443 is never used.
 if ! container_is_running caddy; then
-    for port in 80 443; do
+    for port in 80 8443; do
         if docker ps --filter "publish=$port" --format '{{.ID}}' | grep -q .; then
             echo "Ошибка: порт $port уже опубликован другим Docker-контейнером."
             echo "Скрипт остановлен; чужие контейнеры и сайты не менялись."
@@ -161,6 +172,6 @@ if [[ "$READY" != true ]]; then
 fi
 
 echo
-echo "Контейнеры сайта запущены: https://$DOMAIN"
-echo "Caddy автоматически получает и обновляет сертификат Let's Encrypt."
-echo "Для выдачи сертификата домен должен указывать на этот сервер, а входящие TCP-порты 80 и 443 должны быть доступны из интернета."
+echo "Контейнеры сайта запущены: https://$DOMAIN:8443"
+echo "Caddy получает и обновляет сертификат Let's Encrypt через HTTP-порт 80; порт 443 не используется."
+echo "DNS домена должен указывать на этот сервер, а входящие TCP-порты 80 и 8443 должны быть доступны из интернета."
