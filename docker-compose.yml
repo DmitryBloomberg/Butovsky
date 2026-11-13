@@ -1,0 +1,13 @@
+# docker-compose.yml (в корне проекта)
+services:
+  butovsky-web:
+    build:
+      context: ./Services/butovsky-web_site # Путь к папке, где лежит Dockerfile
+      dockerfile: Dockerfile
+    container_name: butovsky-web-site
+    ports:
+      - "3000:3000" # Пробрасываем порт 3000 из контейнера на хост-машину
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
